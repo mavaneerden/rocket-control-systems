@@ -5,6 +5,6 @@ Requires [the latest release of kRPC](https://github.com/nullprofile/krpc/releas
 
 ## File structure
 - `lib`: Contains a header-only custom library for kRPC. This is where most of the calculations are done.
-- `missions`: Each folder in this directory corresponds to a certain mission that I've done in the game. Each mission has its own craftfile that contains the spacecraft used for the mission.
+- `missions`: Each folder in this directory corresponds to a certain mission that I've done in the game. Each mission has its own craftfile for the spacecraft used during the mission.
 
 ## Mission list
