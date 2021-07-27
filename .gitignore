@@ -1,0 +1,13 @@
+# Ignore extensionless files
+*
+!*/
+!*.*
+
+# Ignore bash scripts
+*.sh
+
+# Ignore old directories
+*_old/
+
+# Ignore editor directories
+.vscode/
