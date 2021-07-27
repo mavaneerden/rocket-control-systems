@@ -1,12 +1,24 @@
 #pragma once
 
+#include <fstream>
+
 #include <krpc.hpp>
 #include <krpc/services/krpc.hpp>
 #include <krpc/services/space_center.hpp>
 #include "enums/types.hpp"
 
 #define CONNECT_NAME "Laptop"
-#define CONNECT_ADDRESS "192.168.178.27"
+
+std::string get_address() {
+	std::string address;
+	std::ifstream file;
+
+	file.open("ip-address.txt");
+	file >> address;
+	file.close();
+
+	return address;
+}
 
 namespace KSP
 {
@@ -15,7 +27,7 @@ namespace KSP
     public:
         Connection();
     public:
-        krpc::Client client = krpc::connect(CONNECT_NAME, CONNECT_ADDRESS);
+        krpc::Client client = krpc::connect(CONNECT_NAME, get_address());
         krpc::services::KRPC krpc = krpc::services::KRPC(&this->client);
         krpc::services::SpaceCenter space_center = krpc::services::SpaceCenter(&this->client);
     public:

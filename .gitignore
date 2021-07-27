@@ -11,3 +11,6 @@
 
 # Ignore editor directories
 .vscode/
+
+# Ignore text files
+*.txt
