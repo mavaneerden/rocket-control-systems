@@ -10,14 +10,14 @@
 #define CONNECT_NAME "Laptop"
 
 std::string get_address() {
-	std::string address;
-	std::ifstream file;
+    std::string address;
+    std::ifstream file;
 
-	file.open("ip-address.txt");
-	file >> address;
-	file.close();
+    file.open("ip-address.txt");
+    file >> address;
+    file.close();
 
-	return address;
+    return address;
 }
 
 namespace KSP
