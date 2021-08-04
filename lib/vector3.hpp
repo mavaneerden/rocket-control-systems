@@ -22,6 +22,7 @@ namespace KSP
         Vector3 normalize();
         double length();
         double angle_2d(Vector3 vector);
+        double angle_3d(Vector3 vector);
         double dot(Vector3 vector);
         Vector3 cross(Vector3 vector);
         Vector3 rotate(Vector3 axis, double angle);
@@ -74,6 +75,11 @@ namespace KSP
         auto determiniant = m_x * vector.m_z - m_z * vector.m_x;
 
         return atan2(determiniant, dot_product);
+    }
+
+    double Vector3::angle_3d(Vector3 vector)
+    {
+        return acos(this->normalize().dot(vector.normalize()));
     }
 
     double Vector3::dot(Vector3 vector)

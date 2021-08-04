@@ -1,12 +1,43 @@
 #include "../../lib/ksp.hpp"
 
-void launch(KSP::Connection connection)
+bool check_abort(
+    double thrust,
+    double mass,
+    KSP::Body body,
+    double altitude,
+    KSP::Vector3 velocity,
+    KSP::Vector3 target_velocity
+) {
+    bool abort_twr = KSP::get_twr(thrust, mass, body, altitude) < 1.1;
+    bool abort_attitude = abs(velocity.angle_3d(target_velocity)) > 0.09;
+
+    std::cout << "ATTITUDE: " << abs(velocity.angle_3d(target_velocity)) << std::endl;
+
+    return abort_twr || abort_attitude;
+}
+
+void trigger_abort(KSP::Vessel vessel, KSP::ReferenceFrame reference_frame, KSP::Connection connection)
 {
+    auto vertical_speed_stream = vessel.flight(reference_frame).vertical_speed_stream();
+
+    vessel.control().set_abort(true);
+    vessel.auto_pilot().set_target_direction(KSP::Vector3(1, 0, 0).rotate(KSP::Vector3(0, 0, 1), 0.1).to_tuple());
+
+    while (vertical_speed_stream() > 0)
+    {
+        KSP::sleep_milliseconds(100);
+    }
+
+    // TODO: parachute openings
+}
+
+void launch(
+    KSP::Connection connection
+) {
     /* Get the active vessel. */
     auto vessel = connection.space_center.active_vessel();
     /* Reference frame used throughout the flight. */
     auto reference_frame = vessel.surface_reference_frame();
-    auto surface_reference_frame = vessel.surface_reference_frame();
 
     /* Target values. */
     auto target_direction = KSP::Vector3(1, 0, 0);
@@ -47,9 +78,9 @@ void launch(KSP::Connection connection)
     /* Release launch clamps. */
     vessel.control().activate_next_stage();
 
-    /* Maintain maximum thrust-to-weight ratio throughout flight until target apoapsis is reached. */
     while (apoapsis_altitude_stream() < target_altitude)
     {
+        /* Maintain maximum thrust-to-weight ratio throughout flight until target apoapsis is reached. */
         auto g = gravitational_paramter / pow(altitude_stream() + body_radius, 2);
         auto twr_current = thrust_stream() / (mass_stream() * g);
         auto thrust_target = target_twr_max * mass_stream() * g;
@@ -57,7 +88,9 @@ void launch(KSP::Connection connection)
 
         vessel.control().set_throttle(throttle);
 
-        auto surface_velocity = KSP::Vector3(connection.space_center.transform_direction(surface_velocity_stream(), body_reference_frame, surface_reference_frame));
+        /* Keep horizontal velocity close to 0 throughout the flight. */
+        // TODO: improve this!
+        auto surface_velocity = KSP::Vector3(connection.space_center.transform_direction(surface_velocity_stream(), body_reference_frame, reference_frame));
         auto surface_speed = surface_velocity.length();
         auto horizontal_velocity = surface_velocity.projection_on_plane(target_direction);
         auto horizontal_speed = horizontal_velocity.length();
@@ -65,7 +98,7 @@ void launch(KSP::Connection connection)
         auto vertical_speed = vertical_velocity.length();
 
         std::cout << "Angle: " << (0.5 / (-5 * horizontal_speed - 0.5) + 1) << std::endl;
-        auto new_target_length = vertical_speed / cos(acos(vertical_speed / surface_speed) + (0.5 / (-5 * horizontal_speed - 0.5) + 1) * (M_PI / 180));
+        auto new_target_length = vertical_speed / cos(acos(vertical_speed / surface_speed) + std::min((0.5 / (-5 * horizontal_speed - 0.5) + 1) * (M_PI / 180), 1 * (M_PI / 180)));
         auto new_target_horizontal_factor = sqrt(pow(new_target_length, 2) - pow(vertical_speed, 2)) / horizontal_speed;
         auto new_target = surface_velocity - (horizontal_velocity + horizontal_velocity * new_target_horizontal_factor);
 
@@ -80,11 +113,19 @@ void launch(KSP::Connection connection)
         std::cout << "VELSURF: " << surface_velocity << std::endl;
         std::cout << "TARGET:  " << new_target << std::endl;
 
+        /* Watch out for abort scenarios. */
+        if (check_abort(thrust_stream(), mass_stream(), body, altitude_stream(), surface_velocity, new_target))
+        {
+            trigger_abort(vessel, body_reference_frame, connection);
+            return;
+        }
+
         KSP::sleep_milliseconds(20);
     }
 
-    /* Cut the engines. */
+    /* Cut the engines and reset the target direction. */
     vessel.control().set_throttle(0.0);
+    vessel.auto_pilot().set_target_direction(target_direction.to_tuple());
 
     /* Wait until an altitude of 55km is reached. */
     while (altitude_stream() < separation_altitude)

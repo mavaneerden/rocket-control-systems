@@ -18,6 +18,7 @@ namespace KSP
         double previous_value;
         Timer timer;
     public:
+        void start();
         double step(double target, double current, double I_bound = 1.0);
         void reset_error();
     };
@@ -25,6 +26,12 @@ namespace KSP
     PID::PID(Connection connection, double kP, double kI, double kD) : kP(kP), kI(kI), kD(kD), timer(Timer(connection))
     {
 
+    }
+
+    void PID::start()
+    {
+        timer.set_current_time_to_ut();
+        reset_error();
     }
 
     double PID::step(double target, double current, double I_bound)

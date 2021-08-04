@@ -14,4 +14,15 @@ namespace KSP
     {
         sleep_milliseconds(seconds * 1000);
     }
+
+    std::string wait_for_user()
+    {
+        std::string s;
+
+        std::cout << "Waiting for input..." << std::endl;
+
+        std::cin >> s;
+
+        return s;
+    }
 }
