@@ -6,6 +6,7 @@
 #include "node_executor.hpp"
 #include "sleep.hpp"
 #include "vector3.hpp"
+#include "angles.hpp"
 
 namespace KSP
 {
@@ -20,9 +21,11 @@ namespace KSP
     public:
         void cicularize(bool raise_orbit);
         void change_inclination(Body target);
+        void change_inclination(Vessel target);
         void lower_orbit_from_apoapsis(double periapsis_target);
         void raise_orbit_from_periapsis(double apoapsis_target);
         void transfer_to_body(Body target);
+        void transfer_to_vessel(Vessel target);
     private:
         double calculate_velocity(Orbit orbit);
         double calculate_velocity(Orbit orbit, double apoapsis, double periapsis, double altitude);
@@ -32,6 +35,8 @@ namespace KSP
         double calculate_transfer_time(double current_radius, double target_radius, float gravitational_parameter);
         double calculate_transfer_delta_v(double current_radius, double target_radius, double gravitational_parameter);
         double calculate_transfer_delta_v(Orbit current_orbit, Orbit target_orbit);
+        void transfer(Orbit target_orbit, Vector3 target_position);
+        void change_inclination(Orbit target_orbit, Vector3 target_position, Vector3 target_velocity);
     };
 
     Maneuver::Maneuver(Connection connection, Vessel vessel) : m_connection(connection), m_vessel(vessel)
@@ -58,20 +63,38 @@ namespace KSP
         executor.execute(m_connection, 1.0);
     }
 
+    void Maneuver::change_inclination(Vessel target)
+    {
+        auto reference_frame = m_vessel.orbit().body().non_rotating_reference_frame();
+        auto target_orbit = target.orbit();
+        auto target_position = Vector3(target.position(reference_frame));
+        auto target_velocity = Vector3(target.velocity(reference_frame));
+
+        change_inclination(target_orbit, target_position, target_velocity);
+    }
+
     void Maneuver::change_inclination(Body target)
+    {
+        auto reference_frame = m_vessel.orbit().body().non_rotating_reference_frame();
+        auto target_orbit = target.orbit();
+        auto target_position = Vector3(target.position(reference_frame));
+        auto target_velocity = Vector3(target.velocity(reference_frame));
+
+        change_inclination(target_orbit, target_position, target_velocity);
+    }
+
+    void Maneuver::change_inclination(Orbit target_orbit, Vector3 target_position, Vector3 target_velocity)
     {
         auto vessel_orbit = m_vessel.orbit();
         auto reference_frame = vessel_orbit.body().non_rotating_reference_frame();
 
         auto vessel_position = Vector3(m_vessel.position(reference_frame));
         auto vessel_velocity = Vector3(m_vessel.velocity(reference_frame));
-        auto target_position = Vector3(target.position(reference_frame));
-        auto target_velocity = Vector3(target.velocity(reference_frame));
         auto vessel_inclination = vessel_orbit.inclination();
-        auto target_inclination = target.orbit().inclination();
+        auto target_inclination = target_orbit.inclination();
         auto vessel_lan = vessel_orbit.longitude_of_ascending_node();
-        auto target_lan = target.orbit().longitude_of_ascending_node();
-        auto inclination_change = vessel_orbit.relative_inclination(target.orbit());
+        auto target_lan = target_orbit.longitude_of_ascending_node();
+        auto inclination_change = vessel_orbit.relative_inclination(target_orbit);
 
         auto vessel_orbital_speed = calculate_velocity(vessel_orbit);
         auto vessel_angular_speed = vessel_orbital_speed / vessel_orbit.semi_major_axis();
@@ -136,32 +159,57 @@ namespace KSP
 
     void Maneuver::transfer_to_body(Body target)
     {
-        auto current_orbit = m_vessel.orbit();
         auto target_orbit = target.orbit();
         auto reference_frame = m_vessel.orbit().body().non_rotating_reference_frame();
         auto target_position = Vector3(target.position(reference_frame));
+
+        transfer(target_orbit, target_position);
+    }
+
+    void Maneuver::transfer_to_vessel(Vessel target)
+    {
+        auto target_orbit = target.orbit();
+        auto reference_frame = m_vessel.orbit().body().non_rotating_reference_frame();
+        auto target_position = Vector3(target.position(reference_frame));
+
+        transfer(target_orbit, target_position);
+    }
+
+    void Maneuver::transfer(Orbit target_orbit, Vector3 target_position)
+    {
+        auto current_orbit = m_vessel.orbit();
+        auto reference_frame = m_vessel.orbit().body().non_rotating_reference_frame();
         auto vessel_position = Vector3(m_vessel.position(reference_frame));
         auto target_angle = calculate_intercept_angle(current_orbit, target_orbit);
         auto current_angular_velocity = 2 * M_PI / current_orbit.period();
         auto target_angular_velocity = 2 * M_PI / target_orbit.period();
         auto current_angle = vessel_position.angle_2d(target_position);
+        double angle_rate = abs(current_angular_velocity - target_angular_velocity);
         double angle_difference;
         double time_to_transfer;
+
+        std::cout << KSP::rad_to_deg(current_angle) << std::endl;
+
+        if (current_orbit.semi_major_axis() < target_orbit.semi_major_axis())
+        {
+            current_angle += 2 * M_PI;
+        }
+
+        std::cout << KSP::rad_to_deg(current_angle) << std::endl;
+
 
         if (current_angle < 0)
         {
             angle_difference = target_angle - current_angle;
             angle_difference = angle_difference < 0 ? angle_difference + 2 * M_PI : angle_difference;
-            time_to_transfer = angle_difference / (target_angular_velocity - current_angular_velocity);
+            time_to_transfer = angle_difference / angle_rate;
         }
         else
         {
             angle_difference = current_angle - target_angle;
             angle_difference = angle_difference < 0 ? angle_difference + 2 * M_PI : angle_difference;
-            time_to_transfer = angle_difference / (current_angular_velocity - target_angular_velocity);
+            time_to_transfer = angle_difference / angle_rate;
         }
-
-        time_to_transfer = time_to_transfer < 0 ? time_to_transfer + current_orbit.period() : time_to_transfer;
 
         auto delta_v_required = calculate_transfer_delta_v(current_orbit, target_orbit);
         auto maneuver_node = m_vessel.control().add_node(m_connection.space_center.ut() + time_to_transfer, delta_v_required);
@@ -196,7 +244,7 @@ namespace KSP
 
     double Maneuver::calculate_intercept_angle(double current_radius, double target_radius, float gravitational_parameter)
     {
-        return M_PI - sqrt(gravitational_parameter / target_radius) * (calculate_transfer_time(current_radius, target_radius, gravitational_parameter) / target_radius);
+        return M_PI - sqrt(gravitational_parameter / pow(target_radius, 3)) * calculate_transfer_time(current_radius, target_radius, gravitational_parameter);
     }
 
     double Maneuver::calculate_intercept_angle(Orbit current_orbit, Orbit target_orbit)

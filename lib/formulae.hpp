@@ -19,4 +19,9 @@ namespace KSP
     {
         return thrust / (mass * get_g_at_altitude(body, altitude));
     }
+
+    double get_twr(Vessel vessel, KSP::Body body)
+    {
+        return vessel.thrust() / (vessel.mass() * get_g_at_altitude(body, vessel.flight().mean_altitude()));
+    }
 }

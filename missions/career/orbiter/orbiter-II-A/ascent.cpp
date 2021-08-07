@@ -6,6 +6,7 @@ int main(int argc, char const *argv[])
     auto connection = KSP::Connection();
     auto vessel = connection.space_center.active_vessel();
     auto body = vessel.orbit().body();
+    auto mun = connection.get_body(KSP::bodies::MUN);
 
     /* Reference frames. */
     auto body_reference_frame = body.reference_frame();
@@ -18,6 +19,8 @@ int main(int argc, char const *argv[])
     auto space_altitude = body.atmosphere_depth();
     auto target_apoapsis = space_altitude + 5000;
     auto prograde_direction = KSP::Vector3(0, 1, 0);
+    auto periapsis_target = 15000;
+    auto retrograde_direction = KSP::Vector3(0, -1, 0);
 
     /* Streams. */
     auto current_stage_stream = vessel.control().current_stage_stream();
@@ -76,6 +79,7 @@ int main(int argc, char const *argv[])
 
     /* Resources. */
     KSP::ResourcesMap resources;
+    resources.insert(std::make_pair(4, vessel.resources_in_decouple_stage(3, false).amount_stream(KSP::resources::SOLID_FUEL)));
     resources.insert(std::make_pair(3, vessel.resources_in_decouple_stage(2, false).amount_stream(KSP::resources::LIQUID_FUEL)));
 
     /* Create launcher. */
@@ -95,12 +99,6 @@ int main(int argc, char const *argv[])
 
         launcher.step(current_stage_stream(), current_altitude, vertical_speed_stream());
 
-        /* Use Science Jr. while flying high. */
-        if (current_altitude > upper_atmosphere_altitude)
-        {
-            vessel.control().set_action_group(1, true);
-        }
-
         KSP::sleep_milliseconds(20);
     }
 
@@ -114,4 +112,36 @@ int main(int argc, char const *argv[])
     /* Create and execute circularisation maneuver node. */
     auto maneuver = KSP::Maneuver(connection, vessel);
     maneuver.cicularize(true);
+    KSP::sleep_seconds(1);
+
+    /* Change inclination to match the Mun's. */
+    maneuver.change_inclination(mun);
+    KSP::sleep_seconds(1);
+
+    /* Transfer to the Mun. */
+    maneuver.transfer_to_body(mun);
+    KSP::sleep_seconds(1);
+
+    /* Periapsis event for Mun. */
+    auto periapsis_altitude_call = vessel.orbit().next_orbit().periapsis_altitude_call();
+    auto periapsis_event = connection.krpc.add_event(
+        KSP::Expression::greater_than(
+            connection.client,
+            KSP::Expression::call(connection.client, periapsis_altitude_call),
+            KSP::Expression::constant_double(connection.client, periapsis_target)
+        )
+    );
+
+    /* Target retrograde. */
+    vessel.auto_pilot().set_reference_frame(orbit_reference_frame);
+    vessel.auto_pilot().set_target_direction(retrograde_direction.to_tuple());
+    vessel.auto_pilot().engage();
+    KSP::sleep_seconds(5);
+
+    /* Burn retrograde and wait for periapsis to drop to target. */
+    vessel.control().set_throttle(0.1);
+    periapsis_event.acquire();
+    periapsis_event.wait();
+    periapsis_event.release();
+    vessel.control().set_throttle(0.0);
 }

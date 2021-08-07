@@ -25,16 +25,6 @@ int main(int argc, char const *argv[])
     auto altitude_stream = vessel.flight().mean_altitude_stream();
     auto apoapsis_stream = vessel.orbit().apoapsis_altitude_stream();
 
-    /* Event for opening the parachute. */
-    auto surface_altitude_call = vessel.flight(surface_reference_frame).surface_altitude_call();
-    auto parachute_event = connection.krpc.add_event(
-        KSP::Expression::less_than_or_equal(
-            connection.client,
-            KSP::Expression::call(connection.client, surface_altitude_call),
-            KSP::Expression::constant_double(connection.client, parachute_altitude)
-        )
-    );
-
     /* Event for being out of the atmosphere. */
     auto altitude_call = vessel.flight().mean_altitude_call();
     auto out_of_atmosphere_event = connection.krpc.add_event(
@@ -45,38 +35,9 @@ int main(int argc, char const *argv[])
         )
     );
 
-    /* Event for being near apoapsis. */
-    auto time_to_apoapsis_call = vessel.orbit().time_to_apoapsis_call();
-    auto apoapsis_reached_event = connection.krpc.add_event(
-        KSP::Expression::less_than(
-            connection.client,
-            KSP::Expression::call(connection.client, time_to_apoapsis_call),
-            KSP::Expression::constant_double(connection.client, 8.0)
-        )
-    );
-
-    /* Event for circularisation burn. */
-    auto periapsis_call = vessel.orbit().periapsis_altitude_call();
-    auto apoapsis_call = vessel.orbit().periapsis_altitude_call();
-    auto circularisation_event = connection.krpc.add_event(
-        KSP::Expression::and_(
-            connection.client,
-            KSP::Expression::greater_than(
-                connection.client,
-                KSP::Expression::call(connection.client, periapsis_call),
-                KSP::Expression::constant_double(connection.client, space_altitude)
-            ),
-            KSP::Expression::greater_than(
-                connection.client,
-                KSP::Expression::call(connection.client, apoapsis_call),
-                KSP::Expression::constant_double(connection.client, space_altitude)
-            )
-        )
-    );
-
     /* Resources. */
     KSP::ResourcesMap resources;
-    resources.insert(std::make_pair(3, vessel.resources_in_decouple_stage(2, false).amount_stream(KSP::resources::LIQUID_FUEL)));
+    resources.insert(std::make_pair(5, vessel.resources_in_decouple_stage(4, false).amount_stream(KSP::resources::LIQUID_FUEL)));
 
     /* Create launcher. */
     KSP::Launcher launcher(vessel, resources);
@@ -110,6 +71,9 @@ int main(int argc, char const *argv[])
     out_of_atmosphere_event.wait();
     out_of_atmosphere_event.release();
     KSP::sleep_seconds(2);
+
+    /* Jettison nose cone. */
+    vessel.control().activate_next_stage();
 
     /* Create and execute circularisation maneuver node. */
     auto maneuver = KSP::Maneuver(connection, vessel);

@@ -3,17 +3,12 @@
 !*/
 !*.*
 
-# Ignore bash scripts
+# Ignore extensions
+*.txt
 *.sh
 
-# Ignore old directories
-*_old/
-
-# Ignore output directories
-out/
-
-# Ignore editor directories
+# Ignore directories
 .vscode/
-
-# Ignore text files
-*.txt
+*_old/
+out/
+test/

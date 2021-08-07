@@ -1,6 +1,7 @@
 #pragma once
 
 #include "angles.hpp"
+#include "countdown.hpp"
 
 namespace KSP
 {

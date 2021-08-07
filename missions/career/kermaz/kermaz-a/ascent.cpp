@@ -6,6 +6,7 @@ int main(int argc, char const *argv[])
     auto connection = KSP::Connection();
     auto vessel = connection.space_center.active_vessel();
     auto body = vessel.orbit().body();
+    auto mun = connection.get_body(KSP::bodies::MUN);
 
     /* Reference frames. */
     auto body_reference_frame = body.reference_frame();
@@ -13,10 +14,8 @@ int main(int argc, char const *argv[])
     auto orbit_reference_frame = vessel.orbital_reference_frame();
 
     /* Targets. */
-    auto parachute_altitude = 1500;
-    auto upper_atmosphere_altitude = body.flying_high_altitude_threshold();
     auto space_altitude = body.atmosphere_depth();
-    auto target_apoapsis = space_altitude + 5000;
+    auto target_apoapsis = space_altitude + 70000;
     auto prograde_direction = KSP::Vector3(0, 1, 0);
 
     /* Streams. */
@@ -24,16 +23,6 @@ int main(int argc, char const *argv[])
     auto vertical_speed_stream = vessel.flight(body_reference_frame).vertical_speed_stream();
     auto altitude_stream = vessel.flight().mean_altitude_stream();
     auto apoapsis_stream = vessel.orbit().apoapsis_altitude_stream();
-
-    /* Event for opening the parachute. */
-    auto surface_altitude_call = vessel.flight(surface_reference_frame).surface_altitude_call();
-    auto parachute_event = connection.krpc.add_event(
-        KSP::Expression::less_than_or_equal(
-            connection.client,
-            KSP::Expression::call(connection.client, surface_altitude_call),
-            KSP::Expression::constant_double(connection.client, parachute_altitude)
-        )
-    );
 
     /* Event for being out of the atmosphere. */
     auto altitude_call = vessel.flight().mean_altitude_call();
@@ -45,38 +34,10 @@ int main(int argc, char const *argv[])
         )
     );
 
-    /* Event for being near apoapsis. */
-    auto time_to_apoapsis_call = vessel.orbit().time_to_apoapsis_call();
-    auto apoapsis_reached_event = connection.krpc.add_event(
-        KSP::Expression::less_than(
-            connection.client,
-            KSP::Expression::call(connection.client, time_to_apoapsis_call),
-            KSP::Expression::constant_double(connection.client, 8.0)
-        )
-    );
-
-    /* Event for circularisation burn. */
-    auto periapsis_call = vessel.orbit().periapsis_altitude_call();
-    auto apoapsis_call = vessel.orbit().periapsis_altitude_call();
-    auto circularisation_event = connection.krpc.add_event(
-        KSP::Expression::and_(
-            connection.client,
-            KSP::Expression::greater_than(
-                connection.client,
-                KSP::Expression::call(connection.client, periapsis_call),
-                KSP::Expression::constant_double(connection.client, space_altitude)
-            ),
-            KSP::Expression::greater_than(
-                connection.client,
-                KSP::Expression::call(connection.client, apoapsis_call),
-                KSP::Expression::constant_double(connection.client, space_altitude)
-            )
-        )
-    );
-
     /* Resources. */
     KSP::ResourcesMap resources;
-    resources.insert(std::make_pair(3, vessel.resources_in_decouple_stage(2, false).amount_stream(KSP::resources::LIQUID_FUEL)));
+    resources.insert(std::make_pair(3, vessel.resources_in_decouple_stage(2, false).amount_stream(KSP::resources::SOLID_FUEL)));
+    resources.insert(std::make_pair(2, vessel.resources_in_decouple_stage(1, false).amount_stream(KSP::resources::LIQUID_FUEL)));
 
     /* Create launcher. */
     KSP::Launcher launcher(vessel, resources);
@@ -95,12 +56,6 @@ int main(int argc, char const *argv[])
 
         launcher.step(current_stage_stream(), current_altitude, vertical_speed_stream());
 
-        /* Use Science Jr. while flying high. */
-        if (current_altitude > upper_atmosphere_altitude)
-        {
-            vessel.control().set_action_group(1, true);
-        }
-
         KSP::sleep_milliseconds(20);
     }
 
@@ -109,9 +64,12 @@ int main(int argc, char const *argv[])
     out_of_atmosphere_event.acquire();
     out_of_atmosphere_event.wait();
     out_of_atmosphere_event.release();
-    KSP::sleep_seconds(2);
+    KSP::sleep_seconds(1);
 
     /* Create and execute circularisation maneuver node. */
     auto maneuver = KSP::Maneuver(connection, vessel);
     maneuver.cicularize(true);
+
+    vessel.auto_pilot().set_target_direction(KSP::Vector3(0, 0, 1).to_tuple());
+    KSP::sleep_seconds(10);
 }

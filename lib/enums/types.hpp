@@ -13,5 +13,6 @@ namespace KSP
     typedef krpc::services::SpaceCenter::Node ManeuverNode;
     typedef krpc::services::SpaceCenter::VesselSituation Situation;
     typedef krpc::services::SpaceCenter::ReferenceFrame ReferenceFrame;
+    typedef krpc::services::SpaceCenter::Engine Engine;
     typedef std::unordered_map<int32_t, krpc::Stream<float>> ResourcesMap;
 }
