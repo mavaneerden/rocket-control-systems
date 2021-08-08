@@ -37,6 +37,7 @@ int main(int argc, char const *argv[])
 
     /* Resources. */
     KSP::ResourcesMap resources;
+    // resources.insert(std::make_pair(6, vessel.resources_in_decouple_stage(5, false).amount_stream(KSP::resources::SOLID_FUEL)));
     resources.insert(std::make_pair(5, vessel.resources_in_decouple_stage(4, false).amount_stream(KSP::resources::LIQUID_FUEL)));
 
     /* Create launcher. */

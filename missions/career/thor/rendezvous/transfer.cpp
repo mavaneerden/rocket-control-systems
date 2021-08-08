@@ -15,8 +15,5 @@ int main(int argc, char const *argv[])
     /* Transfer to target. */
     maneuver.transfer_to_vessel(target_vessel);
     KSP::sleep_seconds(5);
-
-    /* Circularise at target. */
-    maneuver.cicularize(true);
 }
 
